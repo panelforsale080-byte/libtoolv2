@@ -267,8 +267,8 @@ static bool isOwnLibToolLabel(const std::string &label) {
     return false;
 }
 
-static std::vector<ProcessEntry> listFromProcOnly() {
-    std::vector<ProcessEntry> out;
+static std::vector<ProcessInject::ProcessEntry> listFromProcOnly() {
+    std::vector<ProcessInject::ProcessEntry> out;
     const pid_t self = getpid();
     DIR *d = opendir("/proc");
     if (!d) return out;
@@ -302,7 +302,7 @@ static std::vector<ProcessEntry> listFromProcOnly() {
     return out;
 }
 
-static void mergeEntry(std::vector<ProcessEntry> &out, int pid, const std::string &label) {
+static void mergeEntry(std::vector<ProcessInject::ProcessEntry> &out, int pid, const std::string &label) {
     if (pid <= 0 || isOwnLibToolLabel(label)) return;
     for (const auto &e : out)
         if (e.pid == pid) return;
