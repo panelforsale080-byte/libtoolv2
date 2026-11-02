@@ -120,13 +120,49 @@ static void mkdirP(const char *path) {
     mkdir(p.c_str(), 0755);
 }
 
+static std::string readTargetCmdline(pid_t pid) {
+    std::ifstream f("/proc/" + std::to_string(pid) + "/cmdline");
+    std::string cmd;
+    std::getline(f, cmd, '\0');
+    return cmd;
+}
+
+static bool selfMapsContain(const char *needle) {
+    std::ifstream maps("/proc/self/maps");
+    std::string line;
+    while (std::getline(maps, line)) {
+        if (line.find(needle) != std::string::npos) return true;
+    }
+    return false;
+}
+
+static bool targetMapsContain(pid_t pid, const char *needle) {
+    std::ifstream maps("/proc/" + std::to_string(pid) + "/maps");
+    std::string line;
+    while (std::getline(maps, line)) {
+        if (line.find(needle) != std::string::npos) return true;
+    }
+    return false;
+}
+
 static std::pair<std::string, std::string> resolveInjectPath(const char *srcSo,
-                                                             const std::string &virtualHostPkg) {
+                                                             const std::string &virtualHostPkg,
+                                                             pid_t targetPid) {
     if (!srcSo || !srcSo[0]) return {"", ""};
     const char *slash = strrchr(srcSo, '/');
     const std::string base = slash ? slash + 1 : srcSo;
 
     std::vector<std::string> dirs;
+    const std::string targetPkg = readTargetCmdline(targetPid);
+    if (!targetPkg.empty()) {
+        DebugLog::Append("target cmdline=" + targetPkg);
+        if (selfMapsContain("com.gspace.android/virtual")) {
+            dirs.push_back("/data/data/com.gspace.android/virtual/data/user/0/" + targetPkg +
+                           "/files/inject");
+        }
+        dirs.push_back("/data/data/" + targetPkg + "/files/inject");
+        dirs.push_back("/data/user/0/" + targetPkg + "/files/inject");
+    }
     if (!g_apkFilesDir.empty())
         dirs.push_back(g_apkFilesDir + "/inject");
     dirs.push_back("/sdcard/libtool_inject");
@@ -534,7 +570,7 @@ bool InjectLibrary(int pid, const char *srcSo, int monitorMode, std::string &err
     waitpid(pid, nullptr, 0);
 
     const std::string virtualPkg = DetectVirtualHostPkg();
-    const auto paths = resolveInjectPath(srcSo, virtualPkg);
+    const auto paths = resolveInjectPath(srcSo, virtualPkg, pid);
     if (paths.second.empty()) {
         ptrace(PTRACE_DETACH, pid, nullptr, nullptr);
         err = "copy_payload_failed (see debug log / libtool_debug.txt)";
@@ -564,6 +600,13 @@ bool InjectLibrary(int pid, const char *srcSo, int monitorMode, std::string &err
 
     const uintptr_t handle = callInTarget(pid, dlopenAddr, remoteBuf, RTLD_NOW);
     injectSyscall(pid, SYS_MUNMAP, remoteBuf, mapLen, 0, 0, 0, 0);
+
+    char handleHex[32];
+    std::snprintf(handleHex, sizeof(handleHex), "0x%llx", (unsigned long long)handle);
+    const bool mapsHasLib =
+        targetMapsContain(pid, "libTool.so") || targetMapsContain(pid, "libtool.so") ||
+        targetMapsContain(pid, "inject/libTool") || targetMapsContain(pid, paths.second.c_str());
+
     ptrace(PTRACE_DETACH, pid, nullptr, nullptr);
 
     if (handle == 0 || handle == (uintptr_t)-1) {
@@ -571,9 +614,17 @@ bool InjectLibrary(int pid, const char *srcSo, int monitorMode, std::string &err
         LOGE("%s", err.c_str());
         return false;
     }
-    err = "injected handle=0x" + std::to_string(handle) + " " + paths.second;
+    if (!mapsHasLib) {
+        err = std::string("inject_verify_failed handle=") + handleHex +
+              " but lib not in target maps path=" + paths.second;
+        DebugLog::Append(err);
+        DebugLog::Append("hint: game may not read libtool.v2 inject dir; retry after update");
+        return false;
+    }
+    err = std::string("injected handle=") + handleHex + " verified_in_maps=1 " + paths.second;
     LOGI("%s", err.c_str());
     DebugLog::Append("InjectLibrary complete " + err);
+    DebugLog::Append("note: LIBTOOL_INJECT_PAYLOAD build skips hack_thread (use external Resolve in V2 APK)");
     std::string snapPath;
     DebugLog::AutoSaveOnInjectSuccess("pre_return_from_InjectLibrary\n", snapPath);
     return true;

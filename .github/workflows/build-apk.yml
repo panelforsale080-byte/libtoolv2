@@ -31,6 +31,7 @@ jobs:
           NDK_APPLICATION_MK=jni/Application.mk \
           NDK_LIBS_OUT=libs \
           NDK_OUT=obj \
+          APP_CPPFLAGS=-DLIBTOOL_INJECT_PAYLOAD \
           -j"$(nproc)"
         test -f conRentV1/app/src/main/libs/arm64-v8a/libTool.so
         mkdir -p libtoolv2/app/src/main/jniLibs/arm64-v8a

@@ -680,7 +680,9 @@ namespace EspRemote
         const bool payloadOk =
             stat(payloadPath.c_str(), &payloadSt) == 0 && S_ISREG(payloadSt.st_mode);
 
-        ImGui::TextDisabled("Manual PID → Connect → Inject (conRentV1 libTool.so)");
+        ImGui::TextDisabled("Manual PID → Connect → Inject (libTool payload, gspace-safe copy)");
+        ImGui::TextWrapped(
+            "Inject loads .so without auto hack_thread (avoids instant crash). ESP: Connect then Resolve.");
         if (payloadOk)
             ImGui::TextDisabled("Payload: %s", payloadPath.c_str());
         else
