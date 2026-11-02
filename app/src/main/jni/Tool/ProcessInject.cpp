@@ -573,6 +573,9 @@ bool InjectLibrary(int pid, const char *srcSo, int monitorMode, std::string &err
     }
     err = "injected handle=0x" + std::to_string(handle) + " " + paths.second;
     LOGI("%s", err.c_str());
+    DebugLog::Append("InjectLibrary complete " + err);
+    std::string snapPath;
+    DebugLog::AutoSaveOnInjectSuccess("pre_return_from_InjectLibrary\n", snapPath);
     return true;
 }
 } // namespace ProcessInject

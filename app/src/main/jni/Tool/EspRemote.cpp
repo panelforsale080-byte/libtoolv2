@@ -598,6 +598,7 @@ namespace EspRemote
             if (!rpm((pid_t)pid, probe, &word, sizeof(word)))
             {
                 err = "cannot_read_target_memory";
+                DebugLog::Append(err);
                 return false;
             }
         }
@@ -629,6 +630,17 @@ namespace EspRemote
         DebugLog::Append(std::string("Inject start pid=") + std::to_string(pid) + " path=" + path);
         const bool ok = ProcessInject::InjectLibrary(pid, path, 1, err);
         DebugLog::Append(ok ? ("Inject OK " + err) : ("Inject FAIL " + err));
+        if (ok)
+        {
+            std::string extra = "target_pid=" + std::to_string(pid) + "\ninject_result=" + err + "\n";
+            if (!g_log.empty())
+                extra += "\n--- esp log ---\n" + g_log;
+            std::string savedPath;
+            DebugLog::AutoSaveOnInjectSuccess(extra, savedPath);
+            if (!savedPath.empty())
+                g_log = "AUTO-SAVED log (target may crash):\n" + savedPath +
+                        "\n/sdcard/libtool_last_inject_ok.txt\n\n" + g_log;
+        }
         return ok;
     }
 
@@ -790,9 +802,11 @@ namespace EspRemote
         ImGui::SameLine();
         if (ImGui::Button("Save debug file"))
         {
+            if (!g_log.empty())
+                DebugLog::Append("--- esp resolve log ---\n" + g_log);
             std::string path, err;
             if (DebugLog::SaveToFile(path, err))
-                savePathMsg = "Saved: " + path;
+                savePathMsg = "Saved: " + path + " (also Copy debug)";
             else
                 savePathMsg = "Save failed: " + err;
         }

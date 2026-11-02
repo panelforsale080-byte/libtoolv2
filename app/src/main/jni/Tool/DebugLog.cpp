@@ -48,6 +48,18 @@ const std::string &Text()
     return g_text;
 }
 
+static bool writeTextFile(const std::string &path, const std::string &body)
+{
+    std::ofstream out(path, std::ios::trunc);
+    if (!out.is_open())
+        return false;
+    out << body;
+    out.flush();
+    out.close();
+    chmod(path.c_str(), 0644);
+    return true;
+}
+
 bool SaveToFile(std::string &writtenPath, std::string &err)
 {
     err.clear();
@@ -66,20 +78,51 @@ bool SaveToFile(std::string &writtenPath, std::string &err)
         dir.pop_back();
     writtenPath = dir + "/libtool_debug.txt";
 
-    std::ofstream out(writtenPath, std::ios::trunc);
-    if (!out.is_open())
+    if (!writeTextFile(writtenPath, body))
     {
         writtenPath = "/sdcard/libtool_debug.txt";
-        out.open(writtenPath, std::ios::trunc);
+        if (!writeTextFile(writtenPath, body))
+        {
+            err = "cannot_write_debug_file";
+            return false;
+        }
     }
-    if (!out.is_open())
-    {
-        err = "cannot_write_debug_file";
-        return false;
-    }
-    out << body;
-    out.close();
-    chmod(writtenPath.c_str(), 0644);
     return true;
+}
+
+void AutoSaveOnInjectSuccess(const std::string &extraLog, std::string &primaryPath)
+{
+    primaryPath.clear();
+    Append("=== AUTO_SAVE after inject success ===");
+    if (!extraLog.empty())
+        Append(extraLog);
+
+    std::string body;
+    {
+        std::lock_guard<std::mutex> lock(g_mu);
+        body = g_text;
+    }
+
+    std::string dir = g_filesDir;
+    if (dir.empty())
+        dir = "/sdcard";
+    if (!dir.empty() && dir.back() == '/')
+        dir.pop_back();
+
+    const std::string internalMain = dir + "/libtool_debug.txt";
+    const std::string internalInject = dir + "/libtool_last_inject_ok.txt";
+    const std::string sdcardMain = "/sdcard/libtool_debug.txt";
+    const std::string sdcardInject = "/sdcard/libtool_last_inject_ok.txt";
+
+    if (writeTextFile(internalMain, body))
+        primaryPath = internalMain;
+    else if (writeTextFile(sdcardMain, body))
+        primaryPath = sdcardMain;
+
+    writeTextFile(internalInject, body);
+    writeTextFile(sdcardInject, body);
+
+    Append("AUTO_SAVED primary=" + (primaryPath.empty() ? std::string("(none)") : primaryPath));
+    Append("AUTO_SAVED also libtool_last_inject_ok.txt (internal + /sdcard)");
 }
 } // namespace DebugLog
