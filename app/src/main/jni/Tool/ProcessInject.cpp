@@ -310,8 +310,8 @@ static void mergeEntry(std::vector<ProcessInject::ProcessEntry> &out, int pid, c
     out.push_back({pid, trimmed});
 }
 
-static std::vector<ProcessEntry> listFromJava() {
-    std::vector<ProcessEntry> out;
+static std::vector<ProcessInject::ProcessEntry> listFromJava() {
+    std::vector<ProcessInject::ProcessEntry> out;
     extern JavaVM *g_vm;
     if (!g_vm) return out;
     JNIEnv *env = nullptr;
