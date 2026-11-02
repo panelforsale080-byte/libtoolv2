@@ -10,6 +10,7 @@
 #include "Menu/ImGui.h"
 #include "Tool/Keyboard.h"
 #include "Tool/EspTab.h"
+#include "Tool/EspRemote.h"
 #include "Tool/ProcessTab.h"
 #include "Tool/SoMonitor.h"
 #include "Tool/Tool.h"
@@ -800,12 +801,19 @@ extern "C"
     {
         return env->NewStringUTF(Tool::GetWindowRect().c_str());
     }
-}
-__attribute__((constructor)) void lib_main()
-{
-    // Create a new thread so it does not block the main thread, means the game would not freeze
-    pthread_t ptid;
-    pthread_create(&ptid, nullptr, hack_thread, nullptr);
+
+    JNIEXPORT jboolean JNICALL Java_imgui_il2cpp_tool_NativeMethods_connect(JNIEnv *env, jclass clazz, jint pid)
+    {
+        std::string err;
+        const bool ok = EspRemote::Connect((int)pid, err);
+        useJava = true;
+        return ok ? JNI_TRUE : JNI_FALSE;
+    }
+
+    JNIEXPORT jstring JNICALL Java_imgui_il2cpp_tool_NativeMethods_connectError(JNIEnv *env, jclass clazz)
+    {
+        return env->NewStringUTF(EspRemote::Log().c_str());
+    }
 }
 
 JavaVM *g_vm = nullptr;

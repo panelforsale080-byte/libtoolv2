@@ -1,4 +1,5 @@
 #include "Tool/EspTab.h"
+#include "Tool/EspRemote.h"
 
 #include "Il2cpp/Il2cpp.h"
 #include "Il2cpp/il2cpp-class.h"
@@ -690,6 +691,21 @@ namespace
 
 void EspTab::Draw()
 {
+    if (EspRemote::Pid() > 0)
+    {
+        EspRemote::DrawPanel();
+        ImGui::SeparatorText("Enemy");
+        ImGui::Checkbox("Box", &g_feature.box);
+        ImGui::SameLine();
+        ImGui::Checkbox("Line", &g_feature.line);
+        ImGui::SameLine();
+        ImGui::Checkbox("Health", &g_feature.health);
+        ImGui::Checkbox("Name", &g_feature.name);
+        ImGui::SameLine();
+        ImGui::Checkbox("Distance", &g_feature.distance);
+        return;
+    }
+
     ImGui::TextDisabled("Own-app overlay. Reads this process only.");
     if (!Il2cpp::IsRuntimeReady())
     {
@@ -762,6 +778,11 @@ void EspTab::DrawOverlay(ImDrawList *draw, float screenWidth, float screenHeight
 {
     try
     {
+    if (EspRemote::Pid() > 0)
+    {
+        EspRemote::DrawOverlay(draw, screenWidth, screenHeight);
+        return;
+    }
     publishLiveSnapshot(screenWidth, screenHeight);
     if (!draw)
         return;

@@ -18,7 +18,7 @@
         android:id="@+id/statusText"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Same LibTool source. Enter PID, then Connect."
+        android:text="conRentV1 source APK. Enter PID, then Connect."
         android:textColor="#FF9E9E9E"
         android:paddingTop="8dp"
         android:paddingBottom="16dp"/>

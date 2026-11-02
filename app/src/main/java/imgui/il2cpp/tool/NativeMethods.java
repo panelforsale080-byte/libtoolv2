@@ -4,7 +4,7 @@ import android.view.Surface;
 
 public final class NativeMethods {
     static {
-        System.loadLibrary("Tool");
+        System.loadLibrary("libtoolv2");
     }
 
     private NativeMethods() {}
@@ -15,4 +15,6 @@ public final class NativeMethods {
     public static native void onTouchEvent(int action, float x, int xOrig, float y, int yOrig);
     public static native void onSurfaceCreated(Surface surface);
     public static native String getWindowRect();
+    public static native boolean connect(int pid);
+    public static native String connectError();
 }

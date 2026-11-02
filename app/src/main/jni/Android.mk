@@ -9,7 +9,7 @@ LOCAL_PATH := $(MY_ROOT_PATH)
 
 include $(CLEAR_VARS)
 
-LOCAL_MODULE := Tool
+LOCAL_MODULE := libtoolv2
 
 LOCAL_CFLAGS := -w -s -Wno-error=format-security -fvisibility=hidden -fpermissive -fexceptions
 
@@ -54,6 +54,7 @@ LOCAL_SRC_FILES := \
     Tool/ProcessTab.cpp \
     Tool/SoMonitor.cpp \
     Tool/EspTab.cpp \
+    Tool/EspRemote.cpp \
     Tool/Tool.cpp \
     Tool/Util.cpp \
     Tool/Patcher.cpp \
