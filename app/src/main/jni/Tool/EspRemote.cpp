@@ -18,6 +18,8 @@
 #include <unistd.h>
 #include <errno.h>
 #include <signal.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <elf.h>
 #include <cmath>
 #include <cstdint>
@@ -560,6 +562,11 @@ namespace EspRemote
             err.clear();
             return true;
         }
+        if (pid == (int)getpid())
+        {
+            err = "cannot_target_libtool_self";
+            return false;
+        }
         if (kill(pid, 0) == -1 && errno == ESRCH)
         {
             err = "process_not_found";
@@ -570,6 +577,24 @@ namespace EspRemote
         {
             err = "maps_unreadable";
             return false;
+        }
+        uintptr_t probe = 0;
+        for (const auto &m : maps)
+        {
+            if (m.perms[0] == 'r' && m.end > m.start)
+            {
+                probe = m.start;
+                break;
+            }
+        }
+        if (probe)
+        {
+            uint32_t word = 0;
+            if (!rpm((pid_t)pid, probe, &word, sizeof(word)))
+            {
+                err = "cannot_read_target_memory";
+                return false;
+            }
         }
         g_pid.store(pid);
         g_log = "Connected PID=" + std::to_string(pid) + " maps=" + std::to_string(maps.size())
@@ -618,10 +643,17 @@ namespace EspRemote
         static std::vector<ProcessInject::ProcessEntry> procList;
         static bool procLoaded = false;
         static int selectedPid = -1;
-        const std::string payloadPath = ProcessInject::DefaultPayloadPath();
+        const std::string payloadPath = ProcessInject::ResolvePayloadPath();
+        struct stat payloadSt {};
+        const bool payloadOk =
+            stat(payloadPath.c_str(), &payloadSt) == 0 && S_ISREG(payloadSt.st_mode);
 
-        ImGui::TextDisabled("Pili process sa list → auto Connect + Inject .so");
-        ImGui::TextDisabled("Payload: %s", payloadPath.c_str());
+        ImGui::TextDisabled("Pili game / own-app sa list → Connect + Inject libtool.so");
+        if (payloadOk)
+            ImGui::TextDisabled("Payload OK: %s", payloadPath.c_str());
+        else
+            ImGui::TextColored(ImVec4(1.f, 0.5f, 0.35f, 1.f),
+                               "Walang libtool.so — ilagay sa jniLibs/arm64-v8a o /sdcard/libtool.so");
 
         static std::string vhostCached;
         static bool vhostScanned = false;
@@ -657,18 +689,25 @@ namespace EspRemote
             {
                 selectedPid = e.pid;
                 lastErr.clear();
+                if (!payloadOk)
+                {
+                    lastErr = "missing libtool.so payload file";
+                    continue;
+                }
                 std::string err;
                 if (!Connect(e.pid, err))
                 {
-                    lastErr = err.empty() ? "connect failed" : err;
+                    lastErr = std::string("Connect: ") + (err.empty() ? "failed" : err);
                 }
                 else if (!InjectSo(payloadPath.c_str(), err))
                 {
-                    lastErr = err;
+                    lastErr = std::string("Inject: ") + err;
+                    g_log = "Connected PID " + std::to_string(e.pid) + " but inject failed.\n" + err +
+                            "\n\n" + g_log;
                 }
                 else
                 {
-                    g_log = err + "\n\n" + g_log;
+                    g_log = "Connected + injected PID " + std::to_string(e.pid) + "\n" + err + "\n\n" + g_log;
                 }
             }
         }

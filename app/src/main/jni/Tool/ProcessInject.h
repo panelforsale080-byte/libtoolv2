@@ -11,8 +11,11 @@ namespace ProcessInject
         std::string label;
     };
 
-    /** Enumerate /proc (excludes this app). Sorted by label. */
+    /** Java ActivityManager + same-UID /proc; excludes LibTool APK. Sorted by label. */
     std::vector<ProcessEntry> ListRunningProcesses();
+
+    /** Resolve inject payload: libtool.so in native lib dir, then /sdcard/libtool.so */
+    std::string ResolvePayloadPath();
     /** Copy of detectVirtualHostPkg from inject.cpp (dual /data/user/0/ paths in maps). */
     std::string DetectVirtualHostPkg();
 

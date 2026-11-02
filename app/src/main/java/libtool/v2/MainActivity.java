@@ -23,6 +23,7 @@ public class MainActivity extends AppCompatActivity {
         } catch (Throwable ignored) {
         }
         try {
+            ProcessHelper.init(this);
             NativeMethods.setNativeLibDir(getApplicationInfo().nativeLibraryDir);
             NativeMethods.setApkFilesDir(getFilesDir().getAbsolutePath());
         } catch (Throwable ignored) {

@@ -1,5 +1,6 @@
 #include "Tool/ProcessInject.h"
 
+#include <jni.h>
 #include <android/log.h>
 #include <asm/ptrace.h>
 #include <cerrno>
@@ -258,6 +259,109 @@ static uintptr_t callInTarget(pid_t pid, uintptr_t func, uintptr_t a0, uintptr_t
 }
 
 static std::string g_apkLibDir;
+
+static bool isOwnLibToolLabel(const std::string &label) {
+    if (label.empty()) return true;
+    if (label.find("libtool.v2") != std::string::npos) return true;
+    if (label == "libtool.v2") return true;
+    return false;
+}
+
+static std::vector<ProcessEntry> listFromProcOnly() {
+    std::vector<ProcessEntry> out;
+    const pid_t self = getpid();
+    DIR *d = opendir("/proc");
+    if (!d) return out;
+    while (dirent *ent = readdir(d)) {
+        std::string name(ent->d_name);
+        bool isNum = !name.empty();
+        for (char c : name)
+            if (!isdigit(c)) {
+                isNum = false;
+                break;
+            }
+        if (!isNum) continue;
+        const int pid = std::stoi(name);
+        if (pid <= 0 || pid == (int)self) continue;
+
+        std::string label;
+        {
+            std::ifstream f("/proc/" + name + "/cmdline");
+            std::getline(f, label, '\0');
+        }
+        if (label.empty()) {
+            std::ifstream f("/proc/" + name + "/comm");
+            std::getline(f, label);
+        }
+        if (label.empty() || label[0] == '[') continue;
+        if (isOwnLibToolLabel(label)) continue;
+        if (label.size() > 96) label.resize(96);
+        out.push_back({pid, label});
+    }
+    closedir(d);
+    return out;
+}
+
+static void mergeEntry(std::vector<ProcessEntry> &out, int pid, const std::string &label) {
+    if (pid <= 0 || isOwnLibToolLabel(label)) return;
+    for (const auto &e : out)
+        if (e.pid == pid) return;
+    std::string trimmed = label.size() > 96 ? label.substr(0, 96) : label;
+    out.push_back({pid, trimmed});
+}
+
+static std::vector<ProcessEntry> listFromJava() {
+    std::vector<ProcessEntry> out;
+    extern JavaVM *g_vm;
+    if (!g_vm) return out;
+    JNIEnv *env = nullptr;
+    bool attached = false;
+    if (g_vm->GetEnv((void **)&env, JNI_VERSION_1_6) == JNI_EDETACHED) {
+        if (g_vm->AttachCurrentThread(&env, nullptr) != JNI_OK) return out;
+        attached = true;
+    }
+    if (!env) return out;
+
+    jclass helper = env->FindClass("libtool/v2/ProcessHelper");
+    if (!helper) {
+        env->ExceptionClear();
+        if (attached) g_vm->DetachCurrentThread();
+        return out;
+    }
+    jmethodID mid = env->GetStaticMethodID(helper, "listProcessesForNative", "()[Ljava/lang/String;");
+    if (!mid) {
+        if (attached) g_vm->DetachCurrentThread();
+        return out;
+    }
+    auto lines = (jobjectArray)env->CallStaticObjectMethod(helper, mid);
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+        if (attached) g_vm->DetachCurrentThread();
+        return out;
+    }
+    if (lines) {
+        const jsize n = env->GetArrayLength(lines);
+        for (jsize i = 0; i < n; i++) {
+            auto jline = (jstring)env->GetObjectArrayElement(lines, i);
+            if (!jline) continue;
+            const char *utf = env->GetStringUTFChars(jline, nullptr);
+            if (utf) {
+                std::string line = utf;
+                env->ReleaseStringUTFChars(jline, utf);
+                const size_t tab = line.find('\t');
+                if (tab != std::string::npos) {
+                    try {
+                        const int pid = std::stoi(line.substr(0, tab));
+                        mergeEntry(out, pid, line.substr(tab + 1));
+                    } catch (...) {
+                    }
+                }
+            }
+        }
+    }
+    if (attached) g_vm->DetachCurrentThread();
+    return out;
+}
 } // namespace
 
 namespace ProcessInject
@@ -290,42 +394,14 @@ std::string DetectVirtualHostPkg() {
 }
 
 std::vector<ProcessEntry> ListRunningProcesses() {
-    std::vector<ProcessEntry> out;
-    const pid_t self = getpid();
-    DIR *d = opendir("/proc");
-    if (!d) return out;
-    while (dirent *ent = readdir(d)) {
-        std::string name(ent->d_name);
-        bool isNum = !name.empty();
-        for (char c : name)
-            if (!isdigit(c)) {
-                isNum = false;
-                break;
-            }
-        if (!isNum) continue;
-        const int pid = std::stoi(name);
-        if (pid <= 0 || pid == (int)self) continue;
-
-        std::string label;
-        {
-            std::ifstream f("/proc/" + name + "/cmdline");
-            std::getline(f, label, '\0');
-        }
-        if (label.empty()) {
-            std::ifstream f("/proc/" + name + "/comm");
-            std::getline(f, label);
-        }
-        if (label.empty() || label[0] == '[') continue;
-        if (label.size() > 96) label.resize(96);
-
-        out.push_back({pid, label});
-    }
-    closedir(d);
+    std::vector<ProcessEntry> out = listFromJava();
+    for (const auto &e : listFromProcOnly())
+        mergeEntry(out, e.pid, e.label);
     std::sort(out.begin(), out.end(), [](const ProcessEntry &a, const ProcessEntry &b) {
         if (a.label != b.label) return a.label < b.label;
         return a.pid < b.pid;
     });
-    if (out.size() > 300) out.resize(300);
+    if (out.size() > 400) out.resize(400);
     return out;
 }
 
@@ -358,11 +434,29 @@ void SetApkNativeLibDir(const char *dir) {
         g_apkLibDir = dir;
 }
 
+static bool fileExists(const char *path) {
+    struct stat st {};
+    return path && path[0] && stat(path, &st) == 0 && S_ISREG(st.st_mode);
+}
+
 std::string DefaultPayloadPath() {
-    if (g_apkLibDir.empty()) return "/sdcard/libmonitor.so";
-    if (g_apkLibDir.back() == '/')
-        return g_apkLibDir + "libmonitor.so";
-    return g_apkLibDir + "/libmonitor.so";
+    return ResolvePayloadPath();
+}
+
+std::string ResolvePayloadPath() {
+    static const char *candidates[] = {"libtool.so", "libTool.so", "liblibtool.so"};
+    if (!g_apkLibDir.empty()) {
+        for (const char *name : candidates) {
+            const std::string p =
+                g_apkLibDir.back() == '/' ? g_apkLibDir + name : g_apkLibDir + "/" + name;
+            if (fileExists(p.c_str())) return p;
+        }
+        const std::string fallback =
+            g_apkLibDir.back() == '/' ? g_apkLibDir + "libtool.so" : g_apkLibDir + "/libtool.so";
+        return fallback;
+    }
+    if (fileExists("/sdcard/libtool.so")) return "/sdcard/libtool.so";
+    return "/sdcard/libtool.so";
 }
 
 bool InjectLibrary(int pid, const char *srcSo, int monitorMode, std::string &err) {
