@@ -132,7 +132,9 @@ static void ApplyAxcelStyle()
     }
 }
 
-const char *title = OBFUSCATE("Axcel Modified tools"); 
+const char *title = OBFUSCATE("Axcel Modified tools");
+bool useJava = false;
+
 void draw_thread()
 {
     static ImVec2 lastSize = ImVec2(0, 0);
@@ -708,7 +710,6 @@ void on_init()
 }
 
 // we will run our hacks in a new thread so our while loop doesn't block process main thread
-bool useJava = false;
 void *hack_thread(void *)
 {
     logger::Clear();
