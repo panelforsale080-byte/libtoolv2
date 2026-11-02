@@ -14,6 +14,8 @@ void *initModMenu(void *menu_addr, void *on_init_addr = nullptr, bool isJni = fa
 
 void setupMenu();
 
+extern bool isInitialized;
+
 void internalDrawMenu(int width, int height);
 
 void handleInputEvent(int action, float x, float y);

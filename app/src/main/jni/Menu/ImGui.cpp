@@ -21,6 +21,28 @@ swapbuffers_orig o_swapbuffers = nullptr;
 
 extern JavaVM *g_vm;
 
+static void SetPlatformImeData(ImGuiViewport *viewport, ImGuiPlatformImeData *data)
+{
+    if (!g_vm || !data) return;
+    JNIEnv *env = nullptr;
+    bool attached = false;
+    if (g_vm->GetEnv((void **)&env, JNI_VERSION_1_6) == JNI_EDETACHED)
+    {
+        if (g_vm->AttachCurrentThread(&env, nullptr) != JNI_OK) return;
+        attached = true;
+    }
+    if (!env) return;
+    jclass clazz = env->FindClass("imgui/il2cpp/tool/NativeMethods");
+    if (clazz)
+    {
+        jmethodID mid = env->GetStaticMethodID(clazz, "setSoftInputVisible", "(Z)V");
+        if (mid)
+            env->CallStaticVoidMethod(clazz, mid, data->WantVisible ? JNI_TRUE : JNI_FALSE);
+    }
+    env->ExceptionClear();
+    if (attached) g_vm->DetachCurrentThread();
+}
+
 static void SetClipboardText(void *user_data, const char *text)
 {
     // Try Unity GUIUtility first
@@ -194,6 +216,7 @@ void setupMenu()
 
     io.SetClipboardTextFn = SetClipboardText;
     io.GetClipboardTextFn = GetClipboardText;
+    io.SetPlatformImeDataFn = SetPlatformImeData;
 
     // Setup Platform/Renderer backends
     ImGui_ImplAndroid_Init(g_AppWindow);

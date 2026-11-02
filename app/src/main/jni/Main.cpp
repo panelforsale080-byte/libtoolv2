@@ -873,6 +873,21 @@ extern "C"
             env->ReleaseStringUTFChars(dir, utf);
         }
     }
+
+    JNIEXPORT void JNICALL Java_imgui_il2cpp_tool_NativeMethods_onImeCodePoint(JNIEnv *, jclass, jint codePoint)
+    {
+        if (!isInitialized) return;
+        if (codePoint > 0 && codePoint < 0x10000)
+            ImGui::GetIO().AddInputCharacter((unsigned int)codePoint);
+    }
+
+    JNIEXPORT void JNICALL Java_imgui_il2cpp_tool_NativeMethods_onImeBackspace(JNIEnv *, jclass)
+    {
+        if (!isInitialized) return;
+        ImGuiIO &io = ImGui::GetIO();
+        io.AddKeyEvent(ImGuiKey_Backspace, true);
+        io.AddKeyEvent(ImGuiKey_Backspace, false);
+    }
 }
 
 JavaVM *g_vm = nullptr;

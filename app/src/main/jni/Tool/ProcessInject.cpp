@@ -445,7 +445,7 @@ std::string DefaultPayloadPath() {
 }
 
 std::string ResolvePayloadPath() {
-    static const char *candidates[] = {"libtool.so", "libTool.so", "liblibtool.so"};
+    static const char *candidates[] = {"libTool.so", "libtool.so", "liblibtool.so"};
     if (!g_apkLibDir.empty()) {
         for (const char *name : candidates) {
             const std::string p =

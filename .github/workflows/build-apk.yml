@@ -8,15 +8,46 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+      with:
+        path: libtoolv2
+    - uses: actions/checkout@v4
+      with:
+        repository: panelforsale080-byte/conRentV1
+        path: conRentV1
+    - uses: nttld/setup-ndk@v1
+      id: setup-ndk
+      with:
+        ndk-version: r26d
+        add-to-path: false
+    - name: Build conRentV1 libTool.so for inject payload
+      env:
+        ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+      run: |
+        set -euo pipefail
+        "${ANDROID_NDK_HOME}/ndk-build" \
+          -C conRentV1/app/src/main \
+          NDK_PROJECT_PATH=. \
+          APP_BUILD_SCRIPT=jni/Android.mk \
+          NDK_APPLICATION_MK=jni/Application.mk \
+          NDK_LIBS_OUT=libs \
+          NDK_OUT=obj \
+          -j"$(nproc)"
+        test -f conRentV1/app/src/main/libs/arm64-v8a/libTool.so
+        mkdir -p libtoolv2/app/src/main/jniLibs/arm64-v8a
+        cp conRentV1/app/src/main/libs/arm64-v8a/libTool.so libtoolv2/app/src/main/jniLibs/arm64-v8a/libTool.so
+        cp conRentV1/app/src/main/libs/arm64-v8a/libTool.so libtoolv2/app/src/main/jniLibs/arm64-v8a/libtool.so
+        ls -lh libtoolv2/app/src/main/jniLibs/arm64-v8a/
     - uses: actions/setup-java@v4
       with:
         distribution: temurin
         java-version: "17"
     - uses: gradle/actions/setup-gradle@v4
     - run: chmod +x gradlew
+      working-directory: libtoolv2
     - run: ./gradlew assembleDebug --stacktrace
+      working-directory: libtoolv2
     - uses: actions/upload-artifact@v4
       with:
         name: libtoolv2-apk
-        path: app/build/outputs/apk/debug/*.apk
+        path: libtoolv2/app/build/outputs/apk/debug/*.apk
         if-no-files-found: error

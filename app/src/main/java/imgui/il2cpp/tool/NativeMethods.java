@@ -2,6 +2,8 @@ package imgui.il2cpp.tool;
 
 import android.view.Surface;
 
+import libtool.v2.MainActivity;
+
 public final class NativeMethods {
     static {
         System.loadLibrary("toolv2");
@@ -19,4 +21,10 @@ public final class NativeMethods {
     public static native String connectError();
     public static native void setNativeLibDir(String dir);
     public static native void setApkFilesDir(String dir);
+    public static native void onImeCodePoint(int codePoint);
+    public static native void onImeBackspace();
+
+    public static void setSoftInputVisible(boolean visible) {
+        MainActivity.setSoftInputVisible(visible);
+    }
 }
