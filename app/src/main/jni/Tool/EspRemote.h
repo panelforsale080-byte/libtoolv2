@@ -5,6 +5,7 @@
 namespace EspRemote
 {
     bool Connect(int pid, std::string &err);
+    bool InjectSo(const char *payloadPath, std::string &err);
     int Pid();
     bool Resolve();
     const std::string &Log();

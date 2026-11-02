@@ -11,6 +11,7 @@
  */
 #include "Tool/EspRemote.h"
 #include "Tool/LibToolEsp.h"
+#include "Tool/ProcessInject.h"
 #include "imgui/imgui.h"
 #include <android/log.h>
 #include <sys/uio.h>
@@ -579,6 +580,24 @@ namespace EspRemote
 
     int Pid() { return g_pid.load(); }
 
+    bool InjectSo(const char *payloadPath, std::string &err)
+    {
+        const int pid = g_pid.load();
+        if (pid <= 0)
+        {
+            err = "connect_pid_first";
+            return false;
+        }
+        const char *path = payloadPath;
+        std::string fallback;
+        if (!path || !path[0])
+        {
+            fallback = ProcessInject::DefaultPayloadPath();
+            path = fallback.c_str();
+        }
+        return ProcessInject::InjectLibrary(pid, path, 1, err);
+    }
+
     bool Resolve()
     {
         std::lock_guard<std::mutex> lock(g_mu);
@@ -595,12 +614,36 @@ namespace EspRemote
 
     void DrawPanel()
     {
-        ImGui::TextDisabled("LibTool V2 APK · conRentV1 EspTab · no .so inject");
+        ImGui::TextDisabled("LibTool V2 · own-app PID → Connect → Inject .so (inject.cpp flow)");
+        static char pidBuf[16] = {};
+        static char pkgBuf[128] = {};
+        static char soBuf[512] = {};
+        static std::string lastErr;
+        static bool soInit = false;
+        if (!soInit)
+        {
+            const std::string def = ProcessInject::DefaultPayloadPath();
+            std::snprintf(soBuf, sizeof(soBuf), "%s", def.c_str());
+            soInit = true;
+        }
+        const std::string vhost = ProcessInject::DetectVirtualHostPkg();
+        if (!vhost.empty())
+            ImGui::TextDisabled("Virtual host: %s", vhost.c_str());
+
+        ImGui::InputText("Manual PID", pidBuf, sizeof(pidBuf), ImGuiInputTextFlags_CharsDecimal);
+        ImGui::InputText("Package (optional)", pkgBuf, sizeof(pkgBuf));
+        if (ImGui::Button("Find PID from package") && pkgBuf[0])
+        {
+            const int found = ProcessInject::FindPidByPackage(pkgBuf);
+            if (found > 0)
+                std::snprintf(pidBuf, sizeof(pidBuf), "%d", found);
+            else
+                lastErr = "package_not_running";
+        }
+        ImGui::InputText("Payload .so path", soBuf, sizeof(soBuf));
+
         if (Pid() <= 0)
         {
-            static char pidBuf[16] = {};
-            static std::string lastErr;
-            ImGui::InputText("Manual PID", pidBuf, sizeof(pidBuf), ImGuiInputTextFlags_CharsDecimal);
             if (ImGui::Button("Connect"))
             {
                 lastErr.clear();
@@ -619,18 +662,29 @@ namespace EspRemote
             }
             if (!lastErr.empty())
                 ImGui::TextColored(ImVec4(1.f, 0.45f, 0.45f, 1.f), "%s", lastErr.c_str());
-            ImGui::TextWrapped("Menu opens first. Enter the own-app PID here, then Connect.");
+            ImGui::TextWrapped("Lagay own-app / game PID, Connect, tapos Inject .so. Default payload: libmonitor.so sa native lib dir o /sdcard.");
             return;
         }
 
         ImGui::Text("Connected PID %d", Pid());
+        if (ImGui::Button("Inject .so"))
+        {
+            lastErr.clear();
+            std::string err;
+            if (!InjectSo(soBuf, err))
+                lastErr = err;
+            else
+                g_log = err + "\n\n" + g_log;
+        }
+        ImGui::SameLine();
         if (ImGui::Button("Disconnect"))
         {
             std::string err;
             Connect(0, err);
         }
-        ImGui::SameLine();
-        if (ImGui::Button("Resolve classes"))
+        if (!lastErr.empty())
+            ImGui::TextColored(ImVec4(1.f, 0.45f, 0.45f, 1.f), "%s", lastErr.c_str());
+        if (ImGui::Button("Resolve classes (external read)"))
             Resolve();
         ImGui::SameLine();
         ImGui::Text(g_haveKlass ? "klass ok" : "not resolved");

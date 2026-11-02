@@ -22,6 +22,10 @@ public class MainActivity extends AppCompatActivity {
             System.loadLibrary("toolv2");
         } catch (Throwable ignored) {
         }
+        try {
+            NativeMethods.setNativeLibDir(getApplicationInfo().nativeLibraryDir);
+        } catch (Throwable ignored) {
+        }
         setContentView(new MenuView(this));
     }
 

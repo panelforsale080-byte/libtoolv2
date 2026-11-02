@@ -11,6 +11,7 @@
 #include "Tool/Keyboard.h"
 #include "Tool/EspTab.h"
 #include "Tool/EspRemote.h"
+#include "Tool/ProcessInject.h"
 #include "Tool/ProcessTab.h"
 #include "Tool/SoMonitor.h"
 #include "Tool/Tool.h"
@@ -831,6 +832,18 @@ extern "C"
     JNIEXPORT jstring JNICALL Java_imgui_il2cpp_tool_NativeMethods_connectError(JNIEnv *env, jclass clazz)
     {
         return env->NewStringUTF(EspRemote::Log().c_str());
+    }
+
+    JNIEXPORT void JNICALL Java_imgui_il2cpp_tool_NativeMethods_setNativeLibDir(JNIEnv *env, jclass clazz,
+                                                                                 jstring dir)
+    {
+        if (!dir) return;
+        const char *utf = env->GetStringUTFChars(dir, nullptr);
+        if (utf)
+        {
+            ProcessInject::SetApkNativeLibDir(utf);
+            env->ReleaseStringUTFChars(dir, utf);
+        }
     }
 }
 
