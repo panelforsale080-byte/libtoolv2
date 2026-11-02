@@ -626,17 +626,6 @@ static void RunStartupDump(const std::string &filesDir, const std::string &logPa
 void on_init()
 {
     LOGD(__FUNCTION__);
-    while (Il2cpp::GetRuntimeLibraryName().empty())
-    {
-        sleep(1);
-    }
-
-    LOGI("%s has been loaded", Il2cpp::GetRuntimeLibraryName().c_str());
-
-    Il2cpp::Init();
-    Il2cpp::EnsureAttached();
-
-    Keyboard::Init();
 
     initialStyle = ImGui::GetStyle();
     ConfigInit();
@@ -655,10 +644,24 @@ void on_init()
     doChangeTheme = true;
     doChangeScale = true;
 
+    if (Il2cpp::GetRuntimeLibraryName().empty())
+    {
+        LOGI("No IL2CPP in this process; show menu only");
+        return;
+    }
+
+    LOGI("%s has been loaded", Il2cpp::GetRuntimeLibraryName().c_str());
+
+    Il2cpp::Init();
+    Il2cpp::EnsureAttached();
+
+    Keyboard::Init();
+
     LOGD("HOOKING...");
 
 #ifndef LIB_INPUT
-    Unity::HookInput();
+    if (Il2cpp::IsRuntimeReady())
+        Unity::HookInput();
 #endif
 
     if (auto assembly = Il2cpp::GetAssembly("Assembly-CSharp"))
@@ -708,6 +711,13 @@ void *hack_thread(void *)
     appendDumpLog(logPath, ("files dir=" + (filesDir.empty() ? std::string("(none)") : filesDir)).c_str());
     appendDumpLog(logPath, ("dir reason=" + g_dumpDirReason).c_str());
 
+    if (useJava && Il2cpp::GetRuntimeLibraryName().empty())
+    {
+        appendDumpLog(logPath, "APK host: no IL2CPP in this process, skip wait");
+        appendDumpLog(logPath, "starting LibTool UI");
+        return nullptr;
+    }
+
     for (int i = 0; i < 180 && Il2cpp::GetRuntimeLibraryName().empty(); ++i)
     {
         if (i == 0 || i % 5 == 0)
@@ -743,6 +753,8 @@ extern "C"
 {
     JNIEXPORT void JNICALL Java_imgui_il2cpp_tool_NativeMethods_onDrawFrame(JNIEnv *env, jclass clazz)
     {
+        if (glWidth <= 0 || glHeight <= 0)
+            return;
         internalDrawMenu(glWidth, glHeight);
     }
 
@@ -750,22 +762,21 @@ extern "C"
                                                                                  jint height)
     {
         LOGD(__FUNCTION__);
-        static bool once = true;
-        if (once)
-        {
-            // once = false;
-            glWidth = width;
-            glHeight = height;
+        if (width <= 0 || height <= 0)
+            return;
+        glWidth = width;
+        glHeight = height;
+        if (initialScreenSize.x <= 0.f || initialScreenSize.y <= 0.f)
             initialScreenSize = ImVec2((float)width, (float)height);
-            LOGD("glWidth = %d, glHeight = %d", glWidth, glHeight);
-        }
+        LOGD("glWidth = %d, glHeight = %d", glWidth, glHeight);
         setupMenu();
     }
 
     JNIEXPORT void JNICALL Java_imgui_il2cpp_tool_NativeMethods_onSurfaceCreate(JNIEnv *env, jclass clazz)
     {
         LOGD(__FUNCTION__);
-        initModMenu((void *)draw_thread, (void *)on_init, useJava);
+        useJava = true;
+        initModMenu((void *)draw_thread, (void *)on_init, true);
     }
 
     JNIEXPORT void JNICALL Java_imgui_il2cpp_tool_NativeMethods_onTouchEvent(JNIEnv *env, jclass clazz, jint action,
