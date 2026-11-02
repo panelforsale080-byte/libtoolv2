@@ -18,4 +18,5 @@ public final class NativeMethods {
     public static native boolean connect(int pid);
     public static native String connectError();
     public static native void setNativeLibDir(String dir);
+    public static native void setApkFilesDir(String dir);
 }

@@ -145,7 +145,8 @@ void draw_thread()
     {
         auto drawList = ImGui::GetBackgroundDrawList();
         const ImVec2 display = ImGui::GetIO().DisplaySize;
-        EspTab::DrawOverlay(drawList, display.x, display.y);
+        if (drawList && display.x > 0.f && display.y > 0.f)
+            EspTab::DrawOverlay(drawList, display.x, display.y);
         collapsed = !ImGui::Begin(title, nullptr, 0);
         EspTab::Draw();
         ImGui::End();
@@ -644,6 +645,27 @@ void on_init()
     LOGD(__FUNCTION__);
 
     initialStyle = ImGui::GetStyle();
+
+    if (useJava || EspRemote::Pid() > 0 || Il2cpp::GetRuntimeLibraryName().empty())
+    {
+        selectedScale = 3;
+        selectedTheme = 0;
+        ImGui::StyleColorsDark();
+        ApplyAxcelStyle();
+        initialStyle = ImGui::GetStyle();
+        auto *font = ImGui::GetFont();
+        if (font)
+        {
+            font->Scale = scaleFactors[selectedScale];
+            auto style = initialStyle;
+            style.ScaleAllSizes(font->Scale);
+            ImGui::GetStyle() = style;
+        }
+        LOGI("APK host mode (useJava=%d PID=%d); skip IL2CPP and tool_conf", useJava ? 1 : 0,
+             EspRemote::Pid());
+        return;
+    }
+
     ConfigInit();
     selectedScale = ConfigGet<int>("selectedScale", selectedScale);
     if (selectedScale < 0 || selectedScale >= scaleFactors.size())
@@ -659,13 +681,6 @@ void on_init()
     }
     doChangeTheme = true;
     doChangeScale = true;
-
-    if (useJava || EspRemote::Pid() > 0 || Il2cpp::GetRuntimeLibraryName().empty())
-    {
-        LOGI("APK host mode (useJava=%d PID=%d); skip in-process IL2CPP init", useJava ? 1 : 0,
-             EspRemote::Pid());
-        return;
-    }
 
     LOGI("%s has been loaded", Il2cpp::GetRuntimeLibraryName().c_str());
 
@@ -843,6 +858,18 @@ extern "C"
         if (utf)
         {
             ProcessInject::SetApkNativeLibDir(utf);
+            env->ReleaseStringUTFChars(dir, utf);
+        }
+    }
+
+    JNIEXPORT void JNICALL Java_imgui_il2cpp_tool_NativeMethods_setApkFilesDir(JNIEnv *env, jclass clazz,
+                                                                                jstring dir)
+    {
+        if (!dir) return;
+        const char *utf = env->GetStringUTFChars(dir, nullptr);
+        if (utf)
+        {
+            Il2cpp::SetApkHostFilesDir(utf);
             env->ReleaseStringUTFChars(dir, utf);
         }
     }

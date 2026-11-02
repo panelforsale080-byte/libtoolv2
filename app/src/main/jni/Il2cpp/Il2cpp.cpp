@@ -41,6 +41,7 @@ static uint64_t g_il2cpp_size = 0;
 static bool g_initialized = false;
 static bool g_DoLog = true;
 static std::string g_runtimeLibraryName;
+static std::string g_apkHostFilesDir;
 
 static void refreshLibraryBounds(const std::string &libName)
 {
@@ -818,6 +819,12 @@ static std::string GetPackageName() {
 
 namespace Il2cpp
 {
+    void SetApkHostFilesDir(const char *path)
+    {
+        if (path && path[0])
+            g_apkHostFilesDir = path;
+    }
+
     std::string GetRuntimeLibraryName()
     {
         return detectRuntimeLibraryName();
@@ -1429,8 +1436,14 @@ namespace Il2cpp
 
     std::string getDataPath()
     {
+        if (!IsRuntimeReady())
+        {
+            if (!g_apkHostFilesDir.empty())
+                return g_apkHostFilesDir;
+            return "/data/user/0/libtool.v2/files";
+        }
         static auto Application = FindClass("UnityEngine.Application");
-        if (!Application) return "unknown_data_path";
+        if (!Application) return g_apkHostFilesDir.empty() ? "/data/user/0/libtool.v2/files" : g_apkHostFilesDir;
         static auto get_persistentDataPath = GetClassMethod(Application, "get_persistentDataPath", 0);
         if (!get_persistentDataPath) return "unknown_data_path";
         

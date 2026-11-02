@@ -24,6 +24,7 @@ public class MainActivity extends AppCompatActivity {
         }
         try {
             NativeMethods.setNativeLibDir(getApplicationInfo().nativeLibraryDir);
+            NativeMethods.setApkFilesDir(getFilesDir().getAbsolutePath());
         } catch (Throwable ignored) {
         }
         setContentView(new MenuView(this));
@@ -54,6 +55,9 @@ public class MainActivity extends AppCompatActivity {
         public void onSurfaceChanged(GL10 gl, int width, int height) {
             if (width <= 0 || height <= 0) return;
             try {
+                if (!surfaceReady) {
+                    NativeMethods.onSurfaceCreated(getHolder().getSurface());
+                }
                 NativeMethods.onSurfaceCreate();
                 NativeMethods.onSurfaceChanged(width, height);
                 surfaceReady = true;

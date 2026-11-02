@@ -14,6 +14,9 @@ namespace Il2cpp
     bool EnsureAttached();
     void Detach();
 
+    /** Standalone LibTool APK: files dir from Context.getFilesDir() (no IL2CPP). */
+    void SetApkHostFilesDir(const char *path);
+
     // Unity stuff
     std::string getUnityVersion();
     std::string getDataPath();
