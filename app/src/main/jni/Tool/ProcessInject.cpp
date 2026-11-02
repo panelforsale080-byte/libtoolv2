@@ -26,6 +26,8 @@
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
+extern JavaVM *g_vm;
+
 #ifndef SYS_MMAP
 #define SYS_MMAP 222
 #endif
@@ -312,7 +314,6 @@ static void mergeEntry(std::vector<ProcessInject::ProcessEntry> &out, int pid, c
 
 static std::vector<ProcessInject::ProcessEntry> listFromJava() {
     std::vector<ProcessInject::ProcessEntry> out;
-    extern JavaVM *g_vm;
     if (!g_vm) return out;
     JNIEnv *env = nullptr;
     bool attached = false;
