@@ -56,6 +56,7 @@ LOCAL_SRC_FILES := \
     Tool/EspTab.cpp \
     Tool/EspRemote.cpp \
     Tool/ProcessInject.cpp \
+    Tool/DebugLog.cpp \
     Tool/Tool.cpp \
     Tool/Util.cpp \
     Tool/Patcher.cpp \

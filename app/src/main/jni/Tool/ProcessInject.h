@@ -24,6 +24,7 @@ namespace ProcessInject
 
     /** Set once from Java nativeLibraryDir (optional default payload path). */
     void SetApkNativeLibDir(const char *dir);
+    void SetApkFilesDir(const char *dir);
 
     std::string DefaultPayloadPath();
 

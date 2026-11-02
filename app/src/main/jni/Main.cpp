@@ -12,6 +12,7 @@
 #include "Tool/EspTab.h"
 #include "Tool/EspRemote.h"
 #include "Tool/ProcessInject.h"
+#include "Tool/DebugLog.h"
 #include "Tool/ProcessTab.h"
 #include "Tool/SoMonitor.h"
 #include "Tool/Tool.h"
@@ -870,6 +871,8 @@ extern "C"
         if (utf)
         {
             Il2cpp::SetApkHostFilesDir(utf);
+            ProcessInject::SetApkFilesDir(utf);
+            DebugLog::SetFilesDir(utf);
             env->ReleaseStringUTFChars(dir, utf);
         }
     }

@@ -1,4 +1,5 @@
 #include "Tool/ProcessInject.h"
+#include "Tool/DebugLog.h"
 
 #include <jni.h>
 #include <android/log.h>
@@ -19,6 +20,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <algorithm>
+#include <cstring>
 #include <utility>
 #include <vector>
 
@@ -40,6 +42,9 @@ extern JavaVM *g_vm;
 #ifndef RTLD_NOW
 #define RTLD_NOW 2
 #endif
+
+static std::string g_apkLibDir;
+static std::string g_apkFilesDir;
 
 namespace
 {
@@ -72,18 +77,31 @@ static std::vector<MapEntry> readMaps(pid_t pid) {
     return out;
 }
 
-static bool copyFile(const char *src, const char *dst) {
+static bool copyFile(const char *src, const char *dst, std::string *failWhy) {
+    if (failWhy) failWhy->clear();
     FILE *in = fopen(src, "rb");
-    if (!in) return false;
+    if (!in) {
+        if (failWhy)
+            *failWhy = std::string("open_src: ") + src + " errno=" + std::strerror(errno);
+        return false;
+    }
     FILE *out = fopen(dst, "wb");
     if (!out) {
+        if (failWhy)
+            *failWhy = std::string("open_dst: ") + dst + " errno=" + std::strerror(errno);
         fclose(in);
         return false;
     }
     char buf[65536];
     size_t n;
-    while ((n = fread(buf, 1, sizeof(buf), in)) > 0)
-        fwrite(buf, 1, n, out);
+    while ((n = fread(buf, 1, sizeof(buf), in)) > 0) {
+        if (fwrite(buf, 1, n, out) != n) {
+            if (failWhy) *failWhy = "write_short";
+            fclose(in);
+            fclose(out);
+            return false;
+        }
+    }
     fclose(in);
     fclose(out);
     chmod(dst, 0755);
@@ -106,13 +124,40 @@ static std::pair<std::string, std::string> resolveInjectPath(const char *srcSo,
                                                              const std::string &virtualHostPkg) {
     if (!srcSo || !srcSo[0]) return {"", ""};
     const char *slash = strrchr(srcSo, '/');
-    std::string base = slash ? slash + 1 : srcSo;
-    std::string host = virtualHostPkg.empty() ? "inject" : virtualHostPkg;
-    std::string dir = "/data/data/" + host + "/files/inject";
-    mkdirP(dir.c_str());
-    std::string written = dir + "/" + base;
-    if (!copyFile(srcSo, written.c_str())) return {"", ""};
-    return {written, written};
+    const std::string base = slash ? slash + 1 : srcSo;
+
+    std::vector<std::string> dirs;
+    if (!g_apkFilesDir.empty())
+        dirs.push_back(g_apkFilesDir + "/inject");
+    dirs.push_back("/sdcard/libtool_inject");
+    dirs.push_back("/sdcard/Download/libtool_inject");
+    if (!virtualHostPkg.empty()) {
+        dirs.push_back("/data/user/0/" + virtualHostPkg + "/files/inject");
+        dirs.push_back("/data/data/" + virtualHostPkg + "/files/inject");
+    }
+    dirs.push_back("/data/data/libtool.v2/files/inject");
+    dirs.push_back("/data/user/0/libtool.v2/files/inject");
+
+    DebugLog::Append("resolveInjectPath src=" + std::string(srcSo) + " vhost=" + virtualHostPkg);
+
+    for (const std::string &dir : dirs) {
+        mkdirP(dir.c_str());
+        const std::string written = dir + "/" + base;
+        std::string why;
+        DebugLog::Append("try copy -> " + written);
+        if (copyFile(srcSo, written.c_str(), &why)) {
+            DebugLog::Append("copy OK " + written);
+            return {written, written};
+        }
+        DebugLog::Append("copy FAIL " + why);
+    }
+
+    struct stat st {};
+    if (stat(srcSo, &st) == 0 && S_ISREG(st.st_mode)) {
+        DebugLog::Append("fallback dlopen direct path (no copy): " + std::string(srcSo));
+        return {std::string(srcSo), std::string(srcSo)};
+    }
+    return {"", ""};
 }
 
 static void writeModeConfig(int mode, const std::string &writtenPath) {
@@ -259,8 +304,6 @@ static uintptr_t callInTarget(pid_t pid, uintptr_t func, uintptr_t a0, uintptr_t
     ptrace(PTRACE_SETREGSET, pid, (void *)1L, &iov);
     return ret;
 }
-
-static std::string g_apkLibDir;
 
 static bool isOwnLibToolLabel(const std::string &label) {
     if (label.empty()) return true;
@@ -430,9 +473,14 @@ int FindPidByPackage(const std::string &package) {
     return -1;
 }
 
-void SetApkNativeLibDir(const char *dir) {
-    if (dir && dir[0])
-        g_apkLibDir = dir;
+void SetApkNativeLibDir(const char *dir)
+{
+    if (dir && dir[0]) g_apkLibDir = dir;
+}
+
+void SetApkFilesDir(const char *dir)
+{
+    if (dir && dir[0]) g_apkFilesDir = dir;
 }
 
 static bool fileExists(const char *path) {
@@ -489,7 +537,8 @@ bool InjectLibrary(int pid, const char *srcSo, int monitorMode, std::string &err
     const auto paths = resolveInjectPath(srcSo, virtualPkg);
     if (paths.second.empty()) {
         ptrace(PTRACE_DETACH, pid, nullptr, nullptr);
-        err = "copy_payload_failed";
+        err = "copy_payload_failed (see debug log / libtool_debug.txt)";
+        DebugLog::Append(err);
         return false;
     }
     writeModeConfig(monitorMode, paths.first);

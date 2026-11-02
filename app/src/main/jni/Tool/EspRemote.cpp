@@ -12,6 +12,7 @@
 #include "Tool/EspRemote.h"
 #include "Tool/LibToolEsp.h"
 #include "Tool/ProcessInject.h"
+#include "Tool/DebugLog.h"
 #include "imgui/imgui.h"
 #include <android/log.h>
 #include <sys/uio.h>
@@ -565,17 +566,21 @@ namespace EspRemote
         if (pid == (int)getpid())
         {
             err = "cannot_target_libtool_self";
+            DebugLog::Append(err);
             return false;
         }
+        DebugLog::Append("Connect pid=" + std::to_string(pid));
         if (kill(pid, 0) == -1 && errno == ESRCH)
         {
             err = "process_not_found";
+            DebugLog::Append(err);
             return false;
         }
         std::vector<MapsReg> maps;
         if (!read_maps(pid, maps))
         {
             err = "maps_unreadable";
+            DebugLog::Append(err);
             return false;
         }
         uintptr_t probe = 0;
@@ -599,6 +604,7 @@ namespace EspRemote
         g_pid.store(pid);
         g_log = "Connected PID=" + std::to_string(pid) + " maps=" + std::to_string(maps.size())
             + "\nTap Resolve classes in a match.\n";
+        DebugLog::Append("Connect OK maps=" + std::to_string(maps.size()));
         err.clear();
         return true;
     }
@@ -620,7 +626,10 @@ namespace EspRemote
             fallback = ProcessInject::DefaultPayloadPath();
             path = fallback.c_str();
         }
-        return ProcessInject::InjectLibrary(pid, path, 1, err);
+        DebugLog::Append(std::string("Inject start pid=") + std::to_string(pid) + " path=" + path);
+        const bool ok = ProcessInject::InjectLibrary(pid, path, 1, err);
+        DebugLog::Append(ok ? ("Inject OK " + err) : ("Inject FAIL " + err));
+        return ok;
     }
 
     bool Resolve()
@@ -630,9 +639,13 @@ namespace EspRemote
         if (pid <= 0)
         {
             g_log = "ESP RESOLVE LOG\nready=0\nwhy=not connected\n";
+            DebugLog::Append("Resolve skipped: not connected");
             return false;
         }
-        return resolve_libtool(pid);
+        DebugLog::Append("Resolve start pid=" + std::to_string(pid));
+        const bool ok = resolve_libtool(pid);
+        DebugLog::Append(g_log);
+        return ok;
     }
 
     const std::string &Log() { return g_log; }
@@ -760,8 +773,38 @@ namespace EspRemote
             Resolve();
         ImGui::SameLine();
         ImGui::Text(g_haveKlass ? "klass ok" : "not resolved");
-        ImGui::BeginChild("esp_remote_log", ImVec2(-1.f, 160.f), true);
-        ImGui::TextUnformatted(g_log.empty() ? "Optional Resolve after inject." : g_log.c_str());
+
+        ImGui::SeparatorText("Debug log");
+        static std::string savePathMsg;
+        if (ImGui::Button("Copy debug"))
+        {
+            std::string blob = DebugLog::Text();
+            if (!g_log.empty())
+            {
+                blob += "\n--- resolve / esp log ---\n";
+                blob += g_log;
+            }
+            ImGui::SetClipboardText(blob.c_str());
+            savePathMsg = "Copied to clipboard";
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Save debug file"))
+        {
+            std::string path, err;
+            if (DebugLog::SaveToFile(path, err))
+                savePathMsg = "Saved: " + path;
+            else
+                savePathMsg = "Save failed: " + err;
+        }
+        if (!savePathMsg.empty())
+            ImGui::TextDisabled("%s", savePathMsg.c_str());
+
+        ImGui::BeginChild("esp_debug_log", ImVec2(-1.f, 200.f), true);
+        const std::string &dbg = DebugLog::Text();
+        if (!dbg.empty())
+            ImGui::TextUnformatted(dbg.c_str());
+        ImGui::Separator();
+        ImGui::TextUnformatted(g_log.empty() ? "Resolve log appears here." : g_log.c_str());
         ImGui::EndChild();
     }
 
