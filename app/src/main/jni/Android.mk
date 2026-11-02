@@ -9,7 +9,7 @@ LOCAL_PATH := $(MY_ROOT_PATH)
 
 include $(CLEAR_VARS)
 
-LOCAL_MODULE := libtoolv2
+LOCAL_MODULE := toolv2
 
 LOCAL_CFLAGS := -w -s -Wno-error=format-security -fvisibility=hidden -fpermissive -fexceptions
 

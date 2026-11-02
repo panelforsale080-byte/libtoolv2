@@ -4,7 +4,7 @@ import android.view.Surface;
 
 public final class NativeMethods {
     static {
-        System.loadLibrary("libtoolv2");
+        System.loadLibrary("toolv2");
     }
 
     private NativeMethods() {}
