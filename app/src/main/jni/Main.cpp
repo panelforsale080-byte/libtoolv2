@@ -138,7 +138,7 @@ void draw_thread()
     static ImVec2 lastSize = ImVec2(0, 0);
     static ImVec2 lastPos = ImVec2(0, 0);
 
-    if (EspRemote::Pid() > 0)
+    if (useJava)
     {
         auto drawList = ImGui::GetBackgroundDrawList();
         const ImVec2 display = ImGui::GetIO().DisplaySize;

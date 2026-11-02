@@ -553,8 +553,11 @@ namespace EspRemote
         g_log.clear();
         if (pid <= 0)
         {
-            err = "pid_not_set";
-            return false;
+            g_pid.store(0);
+            g_haveKlass = false;
+            g_log.clear();
+            err.clear();
+            return true;
         }
         if (kill(pid, 0) == -1 && errno == ESRCH)
         {
@@ -592,13 +595,47 @@ namespace EspRemote
 
     void DrawPanel()
     {
-        ImGui::Text("Connected PID %d  (conRentV1 EspTab fields)", Pid());
+        ImGui::TextDisabled("LibTool V2 APK · conRentV1 EspTab · no .so inject");
+        if (Pid() <= 0)
+        {
+            static char pidBuf[16] = {};
+            static std::string lastErr;
+            ImGui::InputText("Manual PID", pidBuf, sizeof(pidBuf), ImGuiInputTextFlags_CharsDecimal);
+            if (ImGui::Button("Connect"))
+            {
+                lastErr.clear();
+                const int p = std::atoi(pidBuf);
+                std::string err;
+                if (!Connect(p, err))
+                    lastErr = err.empty() ? "connect failed" : err;
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Clear PID"))
+            {
+                std::string err;
+                Connect(0, err);
+                pidBuf[0] = '\0';
+                lastErr.clear();
+            }
+            if (!lastErr.empty())
+                ImGui::TextColored(ImVec4(1.f, 0.45f, 0.45f, 1.f), "%s", lastErr.c_str());
+            ImGui::TextWrapped("Menu opens first. Enter the own-app PID here, then Connect.");
+            return;
+        }
+
+        ImGui::Text("Connected PID %d", Pid());
+        if (ImGui::Button("Disconnect"))
+        {
+            std::string err;
+            Connect(0, err);
+        }
+        ImGui::SameLine();
         if (ImGui::Button("Resolve classes"))
             Resolve();
         ImGui::SameLine();
         ImGui::Text(g_haveKlass ? "klass ok" : "not resolved");
         ImGui::BeginChild("esp_remote_log", ImVec2(-1.f, 220.f), true);
-        ImGui::TextUnformatted(g_log.empty() ? "Tap Resolve classes." : g_log.c_str());
+        ImGui::TextUnformatted(g_log.empty() ? "Tap Resolve classes in a match." : g_log.c_str());
         ImGui::EndChild();
     }
 
