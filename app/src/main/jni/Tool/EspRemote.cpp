@@ -614,7 +614,7 @@ namespace EspRemote
 
     void DrawPanel()
     {
-        ImGui::TextDisabled("LibTool V2 · own-app PID → Connect → Inject .so (inject.cpp flow)");
+        ImGui::TextDisabled("LibTool V2 · lagay PID ng ibang process → Connect → Inject .so (manual lang)");
         static char pidBuf[16] = {};
         static char pkgBuf[128] = {};
         static char soBuf[512] = {};
@@ -626,9 +626,15 @@ namespace EspRemote
             std::snprintf(soBuf, sizeof(soBuf), "%s", def.c_str());
             soInit = true;
         }
-        const std::string vhost = ProcessInject::DetectVirtualHostPkg();
-        if (!vhost.empty())
-            ImGui::TextDisabled("Virtual host: %s", vhost.c_str());
+        static std::string vhostCached;
+        static bool vhostScanned = false;
+        if (!vhostScanned)
+        {
+            vhostCached = ProcessInject::DetectVirtualHostPkg();
+            vhostScanned = true;
+        }
+        if (!vhostCached.empty())
+            ImGui::TextDisabled("Virtual host: %s", vhostCached.c_str());
 
         ImGui::InputText("Manual PID", pidBuf, sizeof(pidBuf), ImGuiInputTextFlags_CharsDecimal);
         ImGui::InputText("Package (optional)", pkgBuf, sizeof(pkgBuf));

@@ -660,9 +660,10 @@ void on_init()
     doChangeTheme = true;
     doChangeScale = true;
 
-    if (EspRemote::Pid() > 0 || Il2cpp::GetRuntimeLibraryName().empty())
+    if (useJava || EspRemote::Pid() > 0 || Il2cpp::GetRuntimeLibraryName().empty())
     {
-        LOGI("APK host mode (PID=%d); UI only, no in-process IL2CPP", EspRemote::Pid());
+        LOGI("APK host mode (useJava=%d PID=%d); skip in-process IL2CPP init", useJava ? 1 : 0,
+             EspRemote::Pid());
         return;
     }
 

@@ -797,6 +797,13 @@ void EspTab::DrawOverlay(ImDrawList *draw, float screenWidth, float screenHeight
 {
     try
     {
+    // Standalone APK: never touch in-process IL2CPP until user Connects a target PID.
+    if (useJava)
+    {
+        if (EspRemote::Pid() > 0)
+            EspRemote::DrawOverlay(draw, screenWidth, screenHeight);
+        return;
+    }
     if (EspRemote::Pid() > 0)
     {
         EspRemote::DrawOverlay(draw, screenWidth, screenHeight);
