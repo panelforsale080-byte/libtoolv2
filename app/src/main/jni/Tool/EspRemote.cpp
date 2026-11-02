@@ -614,18 +614,15 @@ namespace EspRemote
 
     void DrawPanel()
     {
-        ImGui::TextDisabled("LibTool V2 · lagay PID ng ibang process → Connect → Inject .so (manual lang)");
-        static char pidBuf[16] = {};
-        static char pkgBuf[128] = {};
-        static char soBuf[512] = {};
         static std::string lastErr;
-        static bool soInit = false;
-        if (!soInit)
-        {
-            const std::string def = ProcessInject::DefaultPayloadPath();
-            std::snprintf(soBuf, sizeof(soBuf), "%s", def.c_str());
-            soInit = true;
-        }
+        static std::vector<ProcessInject::ProcessEntry> procList;
+        static bool procLoaded = false;
+        static int selectedPid = -1;
+        const std::string payloadPath = ProcessInject::DefaultPayloadPath();
+
+        ImGui::TextDisabled("Pili process sa list → auto Connect + Inject .so");
+        ImGui::TextDisabled("Payload: %s", payloadPath.c_str());
+
         static std::string vhostCached;
         static bool vhostScanned = false;
         if (!vhostScanned)
@@ -636,48 +633,62 @@ namespace EspRemote
         if (!vhostCached.empty())
             ImGui::TextDisabled("Virtual host: %s", vhostCached.c_str());
 
-        ImGui::InputText("Manual PID", pidBuf, sizeof(pidBuf), ImGuiInputTextFlags_CharsDecimal);
-        ImGui::InputText("Package (optional)", pkgBuf, sizeof(pkgBuf));
-        if (ImGui::Button("Find PID from package") && pkgBuf[0])
+        if (!procLoaded)
         {
-            const int found = ProcessInject::FindPidByPackage(pkgBuf);
-            if (found > 0)
-                std::snprintf(pidBuf, sizeof(pidBuf), "%d", found);
-            else
-                lastErr = "package_not_running";
+            procList = ProcessInject::ListRunningProcesses();
+            procLoaded = true;
         }
-        ImGui::InputText("Payload .so path", soBuf, sizeof(soBuf));
+
+        if (ImGui::Button("Refresh process list"))
+        {
+            procList = ProcessInject::ListRunningProcesses();
+            lastErr.clear();
+        }
+        ImGui::SameLine();
+        ImGui::Text("%zu processes", procList.size());
+
+        ImGui::BeginChild("proc_pick_list", ImVec2(-1.f, 240.f), true);
+        for (const auto &e : procList)
+        {
+            char row[160];
+            std::snprintf(row, sizeof(row), "%s   [%d]", e.label.c_str(), e.pid);
+            const bool picked = (selectedPid == e.pid);
+            if (ImGui::Selectable(row, picked))
+            {
+                selectedPid = e.pid;
+                lastErr.clear();
+                std::string err;
+                if (!Connect(e.pid, err))
+                {
+                    lastErr = err.empty() ? "connect failed" : err;
+                }
+                else if (!InjectSo(payloadPath.c_str(), err))
+                {
+                    lastErr = err;
+                }
+                else
+                {
+                    g_log = err + "\n\n" + g_log;
+                }
+            }
+        }
+        ImGui::EndChild();
+
+        if (!lastErr.empty())
+            ImGui::TextColored(ImVec4(1.f, 0.45f, 0.45f, 1.f), "%s", lastErr.c_str());
 
         if (Pid() <= 0)
         {
-            if (ImGui::Button("Connect"))
-            {
-                lastErr.clear();
-                const int p = std::atoi(pidBuf);
-                std::string err;
-                if (!Connect(p, err))
-                    lastErr = err.empty() ? "connect failed" : err;
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Clear PID"))
-            {
-                std::string err;
-                Connect(0, err);
-                pidBuf[0] = '\0';
-                lastErr.clear();
-            }
-            if (!lastErr.empty())
-                ImGui::TextColored(ImVec4(1.f, 0.45f, 0.45f, 1.f), "%s", lastErr.c_str());
-            ImGui::TextWrapped("Lagay own-app / game PID, Connect, tapos Inject .so. Default payload: libmonitor.so sa native lib dir o /sdcard.");
+            ImGui::TextWrapped("Tap a process name to inject. Walang keyboard / manual PID.");
             return;
         }
 
         ImGui::Text("Connected PID %d", Pid());
-        if (ImGui::Button("Inject .so"))
+        if (ImGui::Button("Inject .so again"))
         {
             lastErr.clear();
             std::string err;
-            if (!InjectSo(soBuf, err))
+            if (!InjectSo(payloadPath.c_str(), err))
                 lastErr = err;
             else
                 g_log = err + "\n\n" + g_log;
@@ -687,15 +698,15 @@ namespace EspRemote
         {
             std::string err;
             Connect(0, err);
+            selectedPid = -1;
+            lastErr.clear();
         }
-        if (!lastErr.empty())
-            ImGui::TextColored(ImVec4(1.f, 0.45f, 0.45f, 1.f), "%s", lastErr.c_str());
         if (ImGui::Button("Resolve classes (external read)"))
             Resolve();
         ImGui::SameLine();
         ImGui::Text(g_haveKlass ? "klass ok" : "not resolved");
-        ImGui::BeginChild("esp_remote_log", ImVec2(-1.f, 220.f), true);
-        ImGui::TextUnformatted(g_log.empty() ? "Tap Resolve classes in a match." : g_log.c_str());
+        ImGui::BeginChild("esp_remote_log", ImVec2(-1.f, 160.f), true);
+        ImGui::TextUnformatted(g_log.empty() ? "After inject, optional Resolve for external ESP read." : g_log.c_str());
         ImGui::EndChild();
     }
 

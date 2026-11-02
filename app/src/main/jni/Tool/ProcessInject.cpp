@@ -17,6 +17,7 @@
 #include <sys/uio.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <algorithm>
 #include <utility>
 #include <vector>
 
@@ -286,6 +287,46 @@ std::string DetectVirtualHostPkg() {
         return pkgA;
     }
     return "";
+}
+
+std::vector<ProcessEntry> ListRunningProcesses() {
+    std::vector<ProcessEntry> out;
+    const pid_t self = getpid();
+    DIR *d = opendir("/proc");
+    if (!d) return out;
+    while (dirent *ent = readdir(d)) {
+        std::string name(ent->d_name);
+        bool isNum = !name.empty();
+        for (char c : name)
+            if (!isdigit(c)) {
+                isNum = false;
+                break;
+            }
+        if (!isNum) continue;
+        const int pid = std::stoi(name);
+        if (pid <= 0 || pid == (int)self) continue;
+
+        std::string label;
+        {
+            std::ifstream f("/proc/" + name + "/cmdline");
+            std::getline(f, label, '\0');
+        }
+        if (label.empty()) {
+            std::ifstream f("/proc/" + name + "/comm");
+            std::getline(f, label);
+        }
+        if (label.empty() || label[0] == '[') continue;
+        if (label.size() > 96) label.resize(96);
+
+        out.push_back({pid, label});
+    }
+    closedir(d);
+    std::sort(out.begin(), out.end(), [](const ProcessEntry &a, const ProcessEntry &b) {
+        if (a.label != b.label) return a.label < b.label;
+        return a.pid < b.pid;
+    });
+    if (out.size() > 300) out.resize(300);
+    return out;
 }
 
 int FindPidByPackage(const std::string &package) {

@@ -1,9 +1,18 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 namespace ProcessInject
 {
+    struct ProcessEntry
+    {
+        int pid = 0;
+        std::string label;
+    };
+
+    /** Enumerate /proc (excludes this app). Sorted by label. */
+    std::vector<ProcessEntry> ListRunningProcesses();
     /** Copy of detectVirtualHostPkg from inject.cpp (dual /data/user/0/ paths in maps). */
     std::string DetectVirtualHostPkg();
 
