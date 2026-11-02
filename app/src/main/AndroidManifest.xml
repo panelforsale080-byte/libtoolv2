@@ -23,12 +23,12 @@
         </activity>
 
         <service
-            android:name=".OverlayService"
+            android:name=".FloatingService"
             android:exported="false"
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Own-app ESP overlay"/>
+                android:value="LibTool menu overlay"/>
         </service>
     </application>
 </manifest>

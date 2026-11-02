@@ -30,7 +30,11 @@ android {
     }
 
     externalNativeBuild {
-        ndkBuild { path = file("src/main/cpp/Android.mk") }
+        ndkBuild { path = file("src/main/jni/Android.mk") }
+    }
+
+    packaging {
+        jniLibs { useLegacyPackaging = true }
     }
 }
 
