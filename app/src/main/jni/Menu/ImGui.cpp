@@ -259,7 +259,16 @@ void internalDrawMenu(int width, int height)
     ImGui::NewFrame();
 
     ImGui::SetNextWindowSize(ImVec2((float)width / 2, (float)height / 2), ImGuiCond_Once);
-    menuAddress();
+    try
+    {
+        menuAddress();
+    }
+    catch (...)
+    {
+        ImGui::Begin("LibTool V2");
+        ImGui::TextColored(ImVec4(1.f, 0.4f, 0.4f, 1.f), "Menu error (safe mode)");
+        ImGui::End();
+    }
 
     ImGui::Render();
 

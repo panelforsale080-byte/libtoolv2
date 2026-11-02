@@ -20,7 +20,6 @@ public class MainActivity extends AppCompatActivity {
     private EditText pidInput;
     private TextView status;
     private boolean nativeOk;
-    private MenuView menu;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -29,7 +28,7 @@ public class MainActivity extends AppCompatActivity {
         pidInput = findViewById(R.id.pidInput);
         status = findViewById(R.id.statusText);
         try {
-            Class.forName("imgui.il2cpp.tool.NativeMethods");
+            System.loadLibrary("toolv2");
             nativeOk = true;
             status.setText("conRentV1 source in this APK. Enter PID, then Connect.");
         } catch (Throwable t) {
@@ -59,6 +58,7 @@ public class MainActivity extends AppCompatActivity {
             ok = NativeMethods.connect(pid);
         } catch (Throwable t) {
             status.setText("Connect native failed: " + t.getMessage());
+            toast("Connect failed");
             return;
         }
         if (!ok) {
@@ -67,7 +67,7 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         try {
-            menu = new MenuView(this);
+            MenuView menu = new MenuView(this);
             setContentView(menu);
         } catch (Throwable t) {
             status.setText("Menu failed: " + t.getMessage());
@@ -80,45 +80,70 @@ public class MainActivity extends AppCompatActivity {
     }
 
     static final class MenuView extends GLSurfaceView implements GLSurfaceView.Renderer {
-        private boolean ready;
+        private boolean surfaceReady;
 
         MenuView(android.content.Context ctx) {
             super(ctx);
             setEGLContextClientVersion(3);
-            setEGLConfigChooser(8, 8, 8, 8, 0, 0);
+            setEGLConfigChooser(8, 8, 8, 8, 16, 0);
             getHolder().setFormat(PixelFormat.TRANSLUCENT);
+            setPreserveEGLContextOnPause(true);
             setRenderer(this);
-            setRenderMode(RENDERMODE_CONTINUOUSLY);
+            setRenderMode(RENDERMODE_WHEN_DIRTY);
         }
 
         @Override
         public void onSurfaceCreated(GL10 gl, EGLConfig config) {
-            NativeMethods.onSurfaceCreated(getHolder().getSurface());
-            NativeMethods.onSurfaceCreate();
-            ready = true;
+            try {
+                NativeMethods.onSurfaceCreated(getHolder().getSurface());
+            } catch (Throwable ignored) {
+            }
         }
 
         @Override
         public void onSurfaceChanged(GL10 gl, int width, int height) {
-            if (ready) NativeMethods.onSurfaceChanged(width, height);
+            if (width <= 0 || height <= 0) return;
+            try {
+                NativeMethods.onSurfaceCreate();
+                NativeMethods.onSurfaceChanged(width, height);
+                surfaceReady = true;
+                setRenderMode(RENDERMODE_CONTINUOUSLY);
+            } catch (Throwable ignored) {
+                surfaceReady = false;
+            }
         }
 
         @Override
         public void onDrawFrame(GL10 gl) {
-            if (ready) NativeMethods.onDrawFrame();
+            if (!surfaceReady) return;
+            try {
+                NativeMethods.onDrawFrame();
+            } catch (Throwable ignored) {
+            }
         }
 
         @Override
         public boolean onTouchEvent(MotionEvent e) {
-            if (!ready) return false;
-            NativeMethods.onTouchEvent(e.getActionMasked(), e.getX(), (int) e.getRawX(), e.getY(), (int) e.getRawY());
+            if (!surfaceReady) return false;
+            try {
+                NativeMethods.onTouchEvent(
+                        e.getActionMasked(),
+                        e.getX(),
+                        (int) e.getRawX(),
+                        e.getY(),
+                        (int) e.getRawY());
+            } catch (Throwable ignored) {
+            }
             return true;
         }
 
         @Override
         public void surfaceDestroyed(SurfaceHolder holder) {
-            try { NativeMethods.onSurfaceCreated(null); } catch (Throwable ignored) {}
-            ready = false;
+            surfaceReady = false;
+            try {
+                NativeMethods.onSurfaceCreated(null);
+            } catch (Throwable ignored) {
+            }
             super.surfaceDestroyed(holder);
         }
     }

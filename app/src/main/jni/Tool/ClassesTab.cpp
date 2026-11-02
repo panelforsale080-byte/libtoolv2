@@ -2073,6 +2073,15 @@ void ClassesTab::Draw(int index, bool closeable)
                                                setOpenedTab ? ImGuiTabItemFlags_SetSelected : 0)))
     {
         setOpenedTab = false;
+        if (!selectedImage && !g_Images.empty())
+            selectedImage = g_Images[0];
+        if (!selectedImage)
+        {
+            ImGui::TextDisabled("IL2CPP not loaded in this APK.");
+            ImGui::TextDisabled("Connect with PID, then use the ESP tab.");
+            ImGui::EndTabItem();
+            return;
+        }
         ImGui::BeginDisabled(includeAllImages);
         ImGui::SetNextWindowSizeConstraints(ImVec2(0, 0), ImVec2(-1, io.DisplaySize.y / 1.5f));
         if (ImGui::BeginCombo("Image##ImageSelector", selectedImage->getName()))

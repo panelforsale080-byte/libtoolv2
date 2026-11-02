@@ -138,6 +138,18 @@ void draw_thread()
     static ImVec2 lastSize = ImVec2(0, 0);
     static ImVec2 lastPos = ImVec2(0, 0);
 
+    if (EspRemote::Pid() > 0)
+    {
+        auto drawList = ImGui::GetBackgroundDrawList();
+        const ImVec2 display = ImGui::GetIO().DisplaySize;
+        EspTab::DrawOverlay(drawList, display.x, display.y);
+        collapsed = !ImGui::Begin(title, nullptr, 0);
+        EspTab::Draw();
+        ImGui::End();
+        Tool::DrawNotifications();
+        return;
+    }
+
     if (resetWindow)
     {
         resetWindow = false;
@@ -645,9 +657,9 @@ void on_init()
     doChangeTheme = true;
     doChangeScale = true;
 
-    if (Il2cpp::GetRuntimeLibraryName().empty())
+    if (EspRemote::Pid() > 0 || Il2cpp::GetRuntimeLibraryName().empty())
     {
-        LOGI("No IL2CPP in this process; show menu only");
+        LOGI("APK host mode (PID=%d); UI only, no in-process IL2CPP", EspRemote::Pid());
         return;
     }
 
@@ -777,7 +789,12 @@ extern "C"
     {
         LOGD(__FUNCTION__);
         useJava = true;
-        initModMenu((void *)draw_thread, (void *)on_init, true);
+        static bool booted = false;
+        if (!booted)
+        {
+            initModMenu((void *)draw_thread, (void *)on_init, true);
+            booted = true;
+        }
     }
 
     JNIEXPORT void JNICALL Java_imgui_il2cpp_tool_NativeMethods_onTouchEvent(JNIEnv *env, jclass clazz, jint action,
