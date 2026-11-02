@@ -136,6 +136,13 @@ static bool selfMapsContain(const char *needle) {
     return false;
 }
 
+static bool runningInGspaceVirtual() {
+    if (g_apkFilesDir.find("com.gspace.android/virtual") != std::string::npos) return true;
+    if (g_apkFilesDir.find("/virtual/data/user/0/") != std::string::npos) return true;
+    return selfMapsContain("com.gspace.android/virtual") ||
+           selfMapsContain("/virtual/data/user/0/");
+}
+
 static bool targetMapsContain(pid_t pid, const char *needle) {
     std::ifstream maps("/proc/" + std::to_string(pid) + "/maps");
     std::string line;
@@ -154,17 +161,25 @@ static std::pair<std::string, std::string> resolveInjectPath(const char *srcSo,
 
     std::vector<std::string> dirs;
     const std::string targetPkg = readTargetCmdline(targetPid);
+    const bool gspace = runningInGspaceVirtual();
+    DebugLog::Append(std::string("gspace_virtual=") + (gspace ? "1" : "0"));
     if (!targetPkg.empty()) {
         DebugLog::Append("target cmdline=" + targetPkg);
-        if (selfMapsContain("com.gspace.android/virtual")) {
+        if (gspace) {
             dirs.push_back("/data/data/com.gspace.android/virtual/data/user/0/" + targetPkg +
                            "/files/inject");
+            dirs.push_back("/data/user/0/" + targetPkg + "/files/inject");
         }
         dirs.push_back("/data/data/" + targetPkg + "/files/inject");
-        dirs.push_back("/data/user/0/" + targetPkg + "/files/inject");
+        if (!gspace)
+            dirs.push_back("/data/user/0/" + targetPkg + "/files/inject");
     }
     if (!g_apkFilesDir.empty())
         dirs.push_back(g_apkFilesDir + "/inject");
+    if (gspace) {
+        dirs.push_back("/data/data/com.gspace.android/virtual/data/user/0/libtool.v2/files/inject");
+        dirs.push_back("/sdcard/Android/data/com.gspace.android/files/libtool_inject");
+    }
     dirs.push_back("/sdcard/libtool_inject");
     dirs.push_back("/sdcard/Download/libtool_inject");
     if (!virtualHostPkg.empty()) {

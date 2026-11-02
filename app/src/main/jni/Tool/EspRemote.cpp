@@ -638,8 +638,10 @@ namespace EspRemote
             std::string savedPath;
             DebugLog::AutoSaveOnInjectSuccess(extra, savedPath);
             if (!savedPath.empty())
-                g_log = "AUTO-SAVED log (target may crash):\n" + savedPath +
-                        "\n/sdcard/libtool_last_inject_ok.txt\n\n" + g_log;
+                g_log = "AUTO-SAVED log:\n" + savedPath +
+                        "\n/sdcard/libtool_last_inject_ok.txt\n"
+                        "Next: open game match -> Resolve classes (external ESP).\n\n" +
+                        g_log;
         }
         return ok;
     }
