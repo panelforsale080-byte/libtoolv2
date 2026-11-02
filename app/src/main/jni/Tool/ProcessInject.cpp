@@ -378,7 +378,7 @@ bool InjectLibrary(int pid, const char *srcSo, int monitorMode, std::string &err
     writeMem(pid, remoteBuf, paths.second.c_str(), pathLen);
 
     const uintptr_t handle = callInTarget(pid, dlopenAddr, remoteBuf, RTLD_NOW);
-    injectSyscall(pid, SYS_MUNMAP, remoteBuf, mapLen, 0, 0, 0);
+    injectSyscall(pid, SYS_MUNMAP, remoteBuf, mapLen, 0, 0, 0, 0);
     ptrace(PTRACE_DETACH, pid, nullptr, nullptr);
 
     if (handle == 0 || handle == (uintptr_t)-1) {
